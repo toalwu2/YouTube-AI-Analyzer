@@ -1,0 +1,5 @@
+# 個人使用紀錄，不是程式碼的一部分
+logs/archive.txt
+
+# macOS 系統產生的垃圾檔案
+.DS_Store
