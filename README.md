@@ -37,7 +37,7 @@ scripts/youtube-ai-analyzer.sh
 ## 安裝
 
 ```bash
-git clone <此專案的 GitHub 網址>
+git clone https://github.com/toalwu2/YouTube-AI-Analyzer.git
 cd YouTube-AI-Analyzer
 brew install yt-dlp jq ffmpeg
 chmod +x scripts/youtube-ai-analyzer.sh
