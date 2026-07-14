@@ -965,3 +965,96 @@ LICENSE（MIT）、專案根目錄 README.md（區別於每支影片資料夾裡
 - 分析一支全新、從未處理過的影片，不管用哪種觸發方式：正常
 - 只有「換成另一種觸發方式，分析『已經被分析過』的影片」才會
   遇到此限制
+
+# Phase 18 附錄 — git push 認證：密碼已停用，需要 Personal Access Token
+
+## 現象
+
+用登入 https://github.com 網頁的帳號密碼，可以正常登入網頁；
+但同一組帳號密碼，在 `git push -u origin main` 跳出的帳密輸入框
+裡使用，卻回報：
+
+```
+remote: Invalid username or token. Password authentication is not supported for Git operations.
+fatal: Authentication failed for 'https://github.com/<user>/<repo>.git/'
+```
+
+## Root Cause
+
+GitHub 從 2021 年 8 月 13 日起，正式停止支援「帳號 + 密碼」對
+Git 操作（`push` / `pull` / `clone` 等走 `https://` 協定的動作）
+進行身分驗證，這是明確的資安政策轉變，不是設定錯誤。
+
+網頁登入跟 `git push` 走的是兩條不同的驗證管道：網頁登入背後有
+完整登入頁面、可能還有雙重驗證（2FA）保護；`git push` 這種命令
+列工具，傳統上是單純把帳密直接送出，這種方式較容易被自動化
+工具濫用，GitHub 因此把這條路徑，換成必須用「Token」而非密碼。
+
+**容易混淆的地方**：跳出的輸入框依然寫著「Password for ...」，
+看起來像是要密碼，但這個欄位現在期待的是一串 Token 字串，不是
+帳號真正的登入密碼——不管密碼打對打錯，都一律會被拒絕。
+
+## Fix
+
+### Step 1：產生 Fine-grained Personal Access Token
+
+1. GitHub 網頁右上角頭像 → **Settings**
+2. 左側選單最下面 → **Developer settings**
+3. **Personal access tokens** → **Fine-grained tokens**
+   （GitHub 目前建議使用這個新版類型，取代舊版 `Tokens (classic)`）
+4. **Generate new token**
+5. 設定：
+   - **Repository access**：`Only select repositories`，勾選
+     目標 repo（不要給整個帳號的存取權，最小權限原則）
+   - **Permissions → Repository permissions**：找到 `Contents`
+     （用畫面上的搜尋框直接打 `Contents` 篩選，不用在整份清單裡
+     往下找），勾選後右側下拉選單選 **Read and write**
+     （這是 `git push` 唯一需要的權限，其餘如 Actions、
+     Administration 等一律不勾）
+   - **Expiration**：設一個期限（例如 90 天），不建議選「永不
+     過期」
+6. **Generate token** → 立刻複製這串字串（GitHub 只會完整顯示
+   這一次，離開頁面後無法再看到，只能重新產生）
+
+### Step 2：把 Token 寫進 remote 網址（避免每次都要在互動框裡
+猜測「這裡到底該打密碼還是 Token」）
+
+```bash
+git remote set-url origin https://<username>:<token>@github.com/<username>/<repo>.git
+git push -u origin main
+```
+
+這次不會再跳出帳密輸入框，直接照網址裡帶的憑證嘗試推送。
+
+## 一個接著可能會遇到的坑：macOS 鑰匙圈快取
+
+如果在拿到正確 Token 之前，已經先用錯誤的密碼失敗過幾次，
+macOS 的「鑰匙圈存取（Keychain Access）」可能已經快取了那組
+錯誤資訊，即使這次輸入正確 Token，系統仍可能優先套用快取，
+導致同樣的錯誤持續發生。
+
+**解法**：打開「鑰匙圈存取」（應用程式 → 工具程式），搜尋
+`github.com`，刪除找到的相關項目，再重新 `git push` 一次——
+系統會因為找不到快取重新詢問，這次登入成功後，新的 Token 會
+被重新存進鑰匙圈，之後不用每次重新輸入。
+
+## Concept 對應
+
+- 這跟本專案一路討論過的「同一個身分，透過不同操作管道，
+  需要出示不同形式的憑證」是同一種模式（呼應 Phase 10 的 TCC
+  呼叫鏈概念），只是這次的規則制定者是 GitHub，不是 macOS
+- Token 的權限範圍選擇，是 Trust Boundary / 最小權限原則的
+  另一種展現：只給「這個 Token 真正要做的事」所需要的權限，
+  不多給，降低萬一外洩時的風險範圍
+
+## 驗證
+
+```bash
+git remote add origin https://github.com/<username>/<repo>.git
+git push -u origin main
+# 應直接成功，不再跳出帳密輸入框或報錯
+
+# 模擬全新使用者 clone，驗證 .gitignore/.gitkeep 是否正確運作
+cd /tmp && git clone https://github.com/<username>/<repo>.git
+ls <repo>/logs/   # 應只看到 .gitkeep，沒有 archive.txt
+```
