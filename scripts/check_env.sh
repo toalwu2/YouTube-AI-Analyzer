@@ -7,7 +7,7 @@
 # 集中管理需要的工具清單。
 # 之後若新增依賴（例如 whisper），只需要改這一行，
 # 不用在程式裡到處新增判斷式 —— 這是在實踐 DRY。
-readonly REQUIRED_TOOLS=("yt-dlp" "jq" "ffmpeg" "osascript")
+readonly REQUIRED_TOOLS=("yt-dlp" "jq" "ffmpeg" "osascript" "python3")
 
 for tool in "${REQUIRED_TOOLS[@]}"; do
     if command -v "$tool" >/dev/null 2>&1; then
