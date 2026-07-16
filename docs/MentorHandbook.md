@@ -75,17 +75,17 @@ git init，並寫出第一支 script check-env.sh 檢查 yt-dlp / jq / ffmpeg / 
 ## Phase 1 — 第一支最小 Script：打通管線
 
 ### Summary
-建立 scripts/youtube-ai-analyzer.sh，用 $1 接收字串，驗證參數數量，
+建立 scripts/youtube-ai-analyzer.sh，用 `$1` 接收字串，驗證參數數量，
 用 log() function 寫入 logs/archive.txt，建立 set -euo pipefail 的
 防禦性骨架，之後所有 Phase 都延用這個地基。
 
 ### Code
 核心結構：set -euo pipefail 開頭 → `$(cd "$(dirname "$0")" && pwd)`
 動態解析自身所在絕對路徑 → log() function 統一輸出 → 參數驗證
-（$# -eq 0 則 exit 1）→ 正常路徑 exit 0。
+（`$#` -eq 0 則 exit 1）→ 正常路徑 exit 0。
 
 ### Concept
-- Positional parameters: $0 $1 $# $@ $*，"$@" vs "$*" 的引號差異
+- Positional parameters: `$0` `$1` `$#` `$@` `$*`，"`$@`" vs "`$*`" 的引號差異
 - set -e / -u / -o pipefail 三者分別的作用，對應「fail fast」
   - set -e：任何指令失敗，立即中止 script
   - set -u：引用未定義變數視為錯誤
@@ -102,7 +102,7 @@ git init，並寫出第一支 script check-env.sh 檢查 yt-dlp / jq / ffmpeg / 
 
 ### Best Practice
 - 路徑解析方案比較：方案 A（寫死絕對路徑，Hard Code）
-  vs 方案 B（裸 dirname "$0"，相對路徑不可靠）
+  vs 方案 B（裸 dirname "`$0`"，相對路徑不可靠）
   vs 方案 C（cd+pwd，採用）→ 因為已知未來會被 Shortcut（非終端機
   環境）呼叫
 - log() 提前抽成 function：因為重複呼叫是「確定會發生」而非
@@ -118,7 +118,7 @@ git init，並寫出第一支 script check-env.sh 檢查 yt-dlp / jq / ffmpeg / 
 ### Summary
 建立 macOS Shortcut「YT Analyzer (Clipboard)」，用「取得剪貼簿」+
 「執行 Shell 腳本」(zsh, Pass Input: as arguments) 呼叫
-youtube-ai-analyzer.sh "$1"，並綁定鍵盤快捷鍵觸發。驗證 log 格式
+youtube-ai-analyzer.sh "`$1`"，並綁定鍵盤快捷鍵觸發。驗證 log 格式
 跟 Terminal 手動執行完全一致，證明 script 對呼叫端保持無知
 （caller-agnostic）。
 
@@ -129,7 +129,7 @@ Get Clipboard → Run Shell Script (/bin/zsh, as arguments) →
 → Show Result（除錯用，Phase 10 會被 Notification 取代）。
 
 ### Concept
-- Run Shell Script 的 Pass Input：as arguments（→ $1）vs as stdin
+- Run Shell Script 的 Pass Input：as arguments（→ `$1`）vs as stdin
   （→ 需用 read/cat 接），本專案選 as arguments
 - Login shell / Interactive shell / Non-interactive shell 的差異：
   Shortcuts 啟動的是 non-login non-interactive shell，不會讀
@@ -148,7 +148,7 @@ Get Clipboard → Run Shell Script (/bin/zsh, as arguments) →
 
 **現象**：從網址列複製 YouTube 網址時，Shortcut 運作正常；但從
 某個 HTML 渲染的網頁（例如聊天介面）選字複製時，Shortcut 傳進
-script 的 $1 變成一串暫存檔路徑，例如
+script 的 `$1` 變成一串暫存檔路徑，例如
 `/Users/xxx/Library/Group Containers/.../Clipboard ....html`，
 而不是預期的純文字內容。
 
@@ -191,9 +191,9 @@ yt-dlp --no-playlist --dump-json 一次性抓回完整 metadata JSON，
 require_command()：command -v 判斷 + exit 1，跟 check-env.sh 邏輯
 相同但用途不同（fail-fast vs 診斷報告）。
 YTDLP_BASE_OPTS=(--no-playlist)：陣列集中管理未來會重複用到的旗標。
-METADATA_JSON="$(yt-dlp "${YTDLP_BASE_OPTS[@]}" --dump-json "$URL")"：
+METADATA_JSON="`$(yt-dlp "${YTDLP_BASE_OPTS[@]}" --dump-json "$URL")`"：
 單次網路請求，之後所有欄位解析都是本地端操作。
-jq -r '.field' <<< "$METADATA_JSON"：here-string 餵資料，-r 去除
+jq -r '.field' <<< "`$METADATA_JSON`"：here-string 餵資料，-r 去除
 JSON 字串的雙引號。
 
 ### Concept
@@ -202,7 +202,7 @@ JSON 字串的雙引號。
 - jq 是「JSON 版的 grep」，.field 語法取值，-r 拿掉雙引號
 - 餵資料進指令的四種方式比較：< 檔案重導、| 管線、<<< here-string、
   <<EOF here-document，各自適合的情境
-- ${#VAR}：字串長度（跟 Phase 1 的 $# 位置參數個數是不同語法）
+- `${#VAR}`：字串長度（跟 Phase 1 的 `$#` 位置參數個數是不同語法）
 - yt-dlp 對「網址帶 list= 參數」的預設行為：優先當作整個播放清單
   處理，需明確加 --no-playlist 才會只處理 v= 指定的單一影片；
   Video ID（v=）、Playlist ID（list=）、Index（index=）是三個
@@ -234,7 +234,7 @@ JSON 字串的雙引號。
 
 ### Code
 sanitize_for_filename()：
-  Step 1: tr "$SRC" "$DST" <<< "$input"  → 危險字元換成 '-'
+  Step 1: tr "`$SRC`" "`$DST`" <<< "`$input`"  → 危險字元換成 '-'
   Step 2: sed -E 's/ +/ /g; s/^ +//; s/ +$//'  → 收斂/去除空白
 jq -r '.title // "Untitled"'：JSON null fallback
 
@@ -297,20 +297,20 @@ jq -r '.title // "Untitled"'：JSON null fallback
 ## Phase 5 — 建立資料夾結構
 
 ### Summary
-新增 BASE_DOWNLOAD_DIR (~/Documents/YoutubeAnalysis，用 $HOME
+新增 BASE_DOWNLOAD_DIR (~/Documents/YoutubeAnalysis，用 `$HOME`
 而非 ~ 定義) 與 ensure_download_dir() function：用 -d 明確檢查
 資料夾是否已存在，區分「新建」vs「重用」並分別記錄 log，而不是
 直接無腦呼叫 mkdir -p 蓋過去。
 
 ### Code
 ensure_download_dir()：
-  [[ -d "$dir" ]] → 已存在，log 後 return
-  否則 mkdir -p "$dir"（用 if ! ... 包住，失敗時自訂清楚的錯誤
+  [[ -d "`$dir`" ]] → 已存在，log 後 return
+  否則 mkdir -p "`$dir`"（用 if ! ... 包住，失敗時自訂清楚的錯誤
   訊息並 exit 1，而不是放給 set -e 用預設方式中止）
 
 ### Concept
 - ~ 展開規則：只在「未加引號、位於字首」時展開；包進雙引號會
-  被當字面字元 → 一律改用 $HOME，不受位置規則限制
+  被當字面字元 → 一律改用 `$HOME`，不受位置規則限制
 - Shell 檔案測試運算子：-e(存在) / -d(是資料夾) / -f(是檔案)
   / -r -w -x(讀寫執行權限)，要問對問題才用對運算子
 - mkdir -p 的兩個獨立功能：(1) 已存在不算錯誤 (2) 自動建立
@@ -343,10 +343,10 @@ Phase 3 已抓的 METADATA_JSON，不需要額外的網路請求。
 
 ### Code
 find_available_lang()：依序比對 PREFERRED_SUBTITLE_LANGS,用
-jq -e --arg lang "$lang" 'has($lang)' 檢查是否存在
+jq -e --arg lang "`$lang`" 'has(`$lang`)' 檢查是否存在
 download_subtitle()：用 case/esac 依 source_mode 切換
 --write-sub / --write-auto-sub，其餘參數完全共用
-SUBTITLES_JSON="$(jq -c '.subtitles // {}' ...)"：防禦 null
+SUBTITLES_JSON="`$(jq -c '.subtitles // {}' ...)`"：防禦 null
 
 ### Concept
 - YouTube automatic_captions 機制：先 ASR 出一份「原始語言」
@@ -411,7 +411,7 @@ language=en，且 `.subtitles | keys` 回傳空陣列。
 ### Code
 download_thumbnail()：yt-dlp --skip-download --write-thumbnail
   --convert-thumbnails webp --output ".../thumbnail.%(ext)s"
-save_info_json()：jq '.' <<< "$METADATA_JSON" > info.json
+save_info_json()：jq '.' <<< "`$METADATA_JSON`" > info.json
   （> 覆寫，不用 >>，因為 info.json 代表最新快照而非歷史累積）
 
 ### Concept
@@ -447,13 +447,13 @@ save_info_json()：jq '.' <<< "$METADATA_JSON" > info.json
 新增 generate_readme()，用 Here-Document（未加引號的 << EOF）
 產生 README.md，涵蓋 URL/Title/Uploader/Upload Date/Download
 Time/Subtitle Language/Folder Name。新增 UPLOAD_DATE_FORMATTED
-（參數展開子字串擷取 ${VAR:offset:length}）與
+（參數展開子字串擷取 `${VAR:offset:length}`）與
 SUBTITLE_LANGUAGE_DISPLAY（依字幕決策最終結果組字串）。
 
 ### Code
-generate_readme()：cat > "$path" << EOF ... EOF，函式只負責
+generate_readme()：cat > "`$path`" << EOF ... EOF，函式只負責
 排版輸出，不做任何判斷邏輯（判斷邏輯在 Main 區塊已完成）
-UPLOAD_DATE_FORMATTED="${RAW:0:4}-${RAW:4:2}-${RAW:6:2}"
+UPLOAD_DATE_FORMATTED="`${RAW:0:4}`-`${RAW:4:2}`-`${RAW:6:2}`"
 
 ### Concept
 - Here-Document 起源與運作機制：<< DELIMITER 把多行文字轉成
@@ -463,7 +463,7 @@ UPLOAD_DATE_FORMATTED="${RAW:0:4}-${RAW:4:2}-${RAW:6:2}"
 - << EOF（未加引號）vs << 'EOF'（加引號）：決定 heredoc 內容
   是否展開變數/指令替換，直接對應雙引號 vs 單引號字串的規則，
   只是套用範圍從一行字串擴大到整段文字區塊
-- 參數展開子字串擷取 ${VAR:offset:length}：跟 ${#VAR}（長度）
+- 參數展開子字串擷取 `${VAR:offset:length}`：跟 `${#VAR}`（長度）
   同屬參數展開家族，索引從 0 開始，概念對應 C# 的 Substring()
 - Heredoc 結尾標記必須「單獨一行、完全一致」：前面多縮排、
   後面多一個看不見的空格，都會讓 Shell 找不到終止點，導致把
@@ -567,7 +567,7 @@ with title ... subtitle ..." || true（通知失敗不拖累整支 script）
 ### Concept
 - osascript：Shell 呼叫 AppleScript 的橋樑，Notification Center
   沒有開放給 Shell 的直接介面，只能透過 AppleScript
-- ${var//pattern/replacement}：Shell 內建全域字串取代，效果同
+- `${var//pattern/replacement}`：Shell 內建全域字串取代，效果同
   sed s///g 但不需呼叫外部指令
 - 跳脫特殊字元的通用原則：永遠先跳脫「跳脫符號本身」，再跳脫
   其他特殊字元，否則新增的保護符號會被自己的規則誤傷
@@ -659,7 +659,7 @@ osascript 控制 Finder 來開啟下載資料夾。補上 Phase 10 遺漏的
 require_command "osascript"。
 
 ### Code
-open_download_folder()：`if ! open "$dir" 2>/dev/null; then
+open_download_folder()：`if ! open "`$dir`" 2>/dev/null; then
   log "Warning: ..."; fi` —— 非致命失敗，只記警告
 
 ### Concept
@@ -690,7 +690,7 @@ open_download_folder 是同一個工具，這次餵給它 URL 而非本機
 功能，並說明理由。
 
 ### Code
-open_chatgpt()：`if ! open "$CHATGPT_URL" 2>/dev/null; then
+open_chatgpt()：`if ! open "`$CHATGPT_URL`" 2>/dev/null; then
   log "Warning: ..."; fi` —— 跟 open_download_folder 同一套
   「非致命失敗」哲學
 
@@ -790,11 +790,11 @@ truncate_to_byte_limit()：python3 -c 搭配 sys.argv 傳資料（不要
 ### Concept
 - APFS 檔名限制是 255 UTF-8 bytes，不是 255 字元；中日文字元
   多半佔 3 bytes，純中文標題實際容量遠低於直覺預期
-- ${#VAR} 量字元數，wc -c 量 byte 數，兩者是不同的量測工具，
+- `${#VAR}` 量字元數，wc -c 量 byte 數，兩者是不同的量測工具，
   對應不同的限制情境
-- ${VAR:0:N} 切字元位置，不保證 byte 邊界安全；需要 byte 邊界
+- `${VAR:0:N}` 切字元位置，不保證 byte 邊界安全；需要 byte 邊界
   安全截斷時，改用 python3 的 encode/decode
-- sys.argv：Python 版的位置參數，概念對應 Shell 的 $1 $2
+- sys.argv：Python 版的位置參數，概念對應 Shell 的 `$1` `$2`
 - str.encode('utf-8') 把字元序列轉成位元組序列，len() 在兩種
   型別上量出的意義完全不同——同一個工具，套用在不同型別上，
   結果語意完全不同
@@ -821,7 +821,7 @@ truncate_to_byte_limit()：python3 -c 搭配 sys.argv 傳資料（不要
 新增 main() function 包住整個分析流程，搭配 main-guard，讓
 script 被 source 時只載入 function 定義。系統性稽核現有
 function 與 Main 的長度，結論是均不需要拆分；保留
-download_* 函式對 $URL/$DOWNLOAD_DIR 的隱含全域依賴。
+download_* 函式對 `$URL`/`$DOWNLOAD_DIR` 的隱含全域依賴。
 
 ### Code
 main-guard 最終版本（見附錄，中間經過修正）：
@@ -844,7 +844,7 @@ fi
 - SRP 檢驗的是「改變理由的數量」，不是「行數多寡」：Main 雖長，
   但只有單一改變理由（這支影片分析流程的步驟與順序），且步驟
   間無重複，拆成一次性階段函式不會減少重複，只會增加追蹤成本
-- 隱含全域變數 vs 明確傳參數：$URL/$DOWNLOAD_DIR 是 readonly
+- 隱含全域變數 vs 明確傳參數：`$URL`/`$DOWNLOAD_DIR` 是 readonly
   （排除意外被改的風險）且本質上是「這次執行唯一、不變」的值，
   保留隱含依賴是誠實反映事實，不是偷懶——但若未來被抽成可重用
   函式庫，這個判斷會反轉
@@ -853,27 +853,27 @@ fi
   層次感，是有明確理由才動手，且能為「不動手」的地方也說出理由
 
 <a id="phase-16-addendum"></a>
-### 附錄 — main-guard 修正紀錄：$ZSH_EVAL_CONTEXT 不可靠，改用 $0
+### 附錄 — main-guard 修正紀錄：`$ZSH_EVAL_CONTEXT` 不可靠，改用 `$0`
 
 **現象**：第一版 main-guard 用 `$ZSH_EVAL_CONTEXT == "toplevel"`
 判斷，實測發現：(1) source 時報 unbound variable；(2) 加上
 `${ZSH_EVAL_CONTEXT:-}` 防護後，連「直接執行」也被誤判成不該
 呼叫 main（值同樣是 UNSET）。
 
-**原因**：$ZSH_EVAL_CONTEXT 在「透過 shebang 執行的 script 檔案」
+**原因**：`$ZSH_EVAL_CONTEXT` 在「透過 shebang 執行的 script 檔案」
 這種情境下，不保證會被賦值，行為不如部分文件描述的穩定，不適合
 用來判斷「這是不是被直接執行」。
 
-**修正**：改用更基本、驗證更充分的機制：$0
-- 直接執行時：$0 是這支 script 自己的路徑/檔名
-- 被 source 時：$0 維持呼叫端（互動式 Shell）自己的 $0
+**修正**：改用更基本、驗證更充分的機制：`$0`
+- 直接執行時：`$0` 是這支 script 自己的路徑/檔名
+- 被 source 時：`$0` 維持呼叫端（互動式 Shell）自己的 `$0`
   （通常是 -zsh 或 zsh），不會變成這支 script 的名字
 
 **已知限制**：檔名寫死在判斷式裡，若重新命名這支 script，
 判斷式會失效，需要同步更新。
 
 **教訓**：zsh 較新、較少被使用的特殊變數，即使查到文件描述其
-行為，也不能保證在所有實際情境下都如文件所寫一致運作；$0 這種
+行為，也不能保證在所有實際情境下都如文件所寫一致運作；`$0` 這種
 歷史悠久、幾乎所有 Shell 都遵守的基本機制，通常更值得信賴。
 真正可靠的知識，來自實測，不是查證本身。
 
